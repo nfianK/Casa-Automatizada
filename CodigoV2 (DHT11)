@@ -1,0 +1,104 @@
+#include <DHT.h>
+#include <DHT_U.h>
+#include <Servo.h>
+
+int sensor[] = {4, 5, 6}, temperaturas[3];
+// cocina = 4, sensores[0]
+// pasillo = 5, sensores[1]
+// pieza = 6, sensores[2]
+DHT dht1(sensor[0], DHT11);
+DHT dht2(sensor[1], DHT11);
+DHT dht3(sensor[2], DHT11); 
+int vent[] = {7, 8, 9};
+// cocina = 7, vent[0]
+// pasillo = 8, vent[1]
+// pieza = 9, vent[2]
+bool states[] = {false, false, false};
+// Estados de activacion 
+int i, temp_trg = 25, temp_eval = 22, count[] = {0, 0, 0}, eval_time= 60000;
+//Interador, parametros establecidos y contador
+
+Servo pat_coc, coc_pas, pas_pie, pas_out;
+void setup() {
+  //Configuración de todos los puertos
+  pat_coc.attach(0, 450, 2500);
+  coc_pas.attach(1, 450, 2500);
+  pas_pie.attach(2, 450, 2500);
+  pas_out.attach(3, 450, 2500);
+  for (i=0;i<=2; i++){
+    pinMode(vent[i], OUTPUT);
+    } 
+}
+void loop() {
+  //Programa estructurado (Funciones establecidas para el accionar)
+  temperaturas[0] = dht1.readTemperature();
+  temperaturas[1] = dht2.readTemperature();
+  temperaturas[2] = dht3.readTemperature();
+  eval_vent();
+  eval_puertas();
+  eval_count();
+}
+int eval_puertas(){
+  for (i=0; i<=2; i++){ // Por cada sensor evalua el estado de este
+    if (temperaturas[i] >= temp_trg){
+      // Si cada sensor esta por arriba de la temperatura establecida entonces se accionan las puertas
+      if (i == 0){ 
+        pat_coc.write(0);
+        coc_pas.write(0);
+        states[i] = true; // El estado de las puertas esta abierto
+      }
+      if (i == 1){
+        coc_pas.write(0);
+        pas_out.write(0);
+        pas_pie.write(0);
+        states[i] = true; 
+      }
+      if (i == 2){
+        pas_pie.write(0);
+        states[i] = true;
+      }
+        } 
+    }
+  }
+int eval_count(){
+  delay(eval_time); // Retardo de tiempo entre cada evaluación 
+  for(i=0;i<=2;i++){ /* Evalua todos los estados,
+                    y si algunos de estos son verdaderos
+                    empezara a contar cada uno de lo que correspoda*/
+    if (states[i]){
+      count[i]++; // Suma al contador de cada sensor
+    }
+  }
+  }
+
+int eval_vent(){
+  for(i=0;i<=2;i++){ // Evalua cada contador
+    if (count[i] == 10){ 
+      if (temperaturas[i] >= temp_eval){ //Evalua cada sensor con margen de mantenimiento
+        if (temperaturas[i] >= temp_trg){
+        digitalWrite(vent[i], HIGH);
+        }
+        count[i] = 0;      
+      }
+      else{ // Si la temperatura es menor entonces cierra las puertas y apaga los ventiladores
+        digitalWrite(vent[i], LOW); 
+        if (i == 0){
+          pat_coc.write(90);
+          if (!states[1]){coc_pas.write(90);} /* Cierra si en la otra habitacion 
+                                              con la que comparte puerta esta fresca*/
+          states[i] = false;
+       }
+        if (i == 1){
+          if (!states[0]){coc_pas.write(90);}
+          pas_out.write(90);
+          if (!states[2]){pas_pie.write(90);}
+          states[i] = false;
+      }
+        if (i == 2){
+          if (!states[1]){pas_pie.write(90);}
+          states[i] = false;
+      }
+      count[i] = 0;
+        }
+    }    
+  }
